@@ -110,9 +110,6 @@
   .form-row label { flex: 1 1 0; min-width: 0; }
   .form-row input { width: 100%; }
   .form select { font-family: 'Inter', sans-serif; font-size: 14px; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; background: #fff; -webkit-appearance: none; appearance: none; }
-  .time-select-group { display: flex; align-items: center; gap: 4px; }
-  .time-select-group select { min-width: 0; }
-  .time-colon { color: var(--ink-soft); font-weight: 600; flex-shrink: 0; }
   .form-error { color: var(--net-red); font-size: 12px; margin-top: 10px; }
   .confirm-btn { width: 100%; background: var(--court); color: var(--chalk); border: none; font-family: 'Oswald', sans-serif; font-weight: 600; letter-spacing: 0.5px; font-size: 14px; padding: 13px; border-radius: 10px; margin-top: 16px; cursor: pointer; }
   .confirm-btn:disabled { opacity: 0.6; }
@@ -192,18 +189,10 @@
         </label>
         <div class="form-row">
           <label>Start
-            <div class="time-select-group">
-              <select id="formStartHour"></select>
-              <span class="time-colon">:</span>
-              <select id="formStartMinute"></select>
-            </div>
+            <select id="formStartHour"></select>
           </label>
           <label>End
-            <div class="time-select-group">
-              <select id="formEndHour"></select>
-              <span class="time-colon">:</span>
-              <select id="formEndMinute"></select>
-            </div>
+            <select id="formEndHour"></select>
           </label>
         </div>
         <label>Court
@@ -220,8 +209,8 @@
    FILL IN THESE TWO LINES with your own project's values from
    Supabase → Project Settings → API Keys, then save this file.
    ==================================================================== */
-const SUPABASE_URL = "https://kqmzelszkskkvsmkzoti.supabase.co/rest/v1/";
-const SUPABASE_KEY = "sb_publishable__8n635hM2wx2V9pkEkX0lA_IrQCY6NR";
+const SUPABASE_URL = "https://aoisbcrlgfgknxxsrduo.supabase.co/rest/v1/";
+const SUPABASE_KEY = "sb_publishable_E3wINTx8-qx5qVJH71uH-w_ugPCmEmH";
 /* ==================================================================== */
 
 const sb = window.supabase.createClient(
@@ -501,11 +490,8 @@ function openModal(dk) {
   document.getElementById("formBookedByOtherWrap").style.display = "none";
 
   const hourOptions = Array.from({length:24}, (_,h) => [String(h).padStart(2,"0"), String(h).padStart(2,"0")]);
-  const minuteOptions = [["00","00"], ["30","30"]];
   populateSelect(document.getElementById("formStartHour"), hourOptions, "--");
-  populateSelect(document.getElementById("formStartMinute"), minuteOptions, "--");
   populateSelect(document.getElementById("formEndHour"), hourOptions, "--");
-  populateSelect(document.getElementById("formEndMinute"), minuteOptions, "--");
 
   const courtOptions = Array.from({length:16}, (_,i) => [String(i+1), String(i+1)]);
   populateSelect(document.getElementById("formCourtSelect"), courtOptions, "Select a court…");
@@ -527,10 +513,9 @@ function handleBookedBySelectChange() {
   otherWrap.style.display = select.value === "__other__" ? "flex" : "none";
 }
 
-function readTimeSelect(hourId, minuteId) {
+function readTimeSelect(hourId) {
   const h = document.getElementById(hourId).value;
-  const m = document.getElementById(minuteId).value;
-  return (h && m) ? `${h}:${m}` : "";
+  return h ? `${h}:00` : "";
 }
 
 async function saveBooking() {
@@ -543,8 +528,8 @@ async function saveBooking() {
   const bookedBy = bookedBySelect === "__other__"
     ? document.getElementById("formBookedByOther").value.trim()
     : bookedBySelect;
-  const start = readTimeSelect("formStartHour", "formStartMinute");
-  const end = readTimeSelect("formEndHour", "formEndMinute");
+  const start = readTimeSelect("formStartHour");
+  const end = readTimeSelect("formEndHour");
   const court = document.getElementById("formCourtSelect").value;
   const errEl = document.getElementById("formError");
 
