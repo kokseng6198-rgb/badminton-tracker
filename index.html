@@ -418,14 +418,17 @@ async function submitGuest(dk) {
   if ((guests[dk] || []).some(g => g.toLowerCase() === name.toLowerCase())) { alert(`${name} is already added for this day.`); return; }
   const { error } = await sb.from("guests").insert({ booking_date: dk, name });
   if (error) { showBanner("Couldn't add that guest. Try again."); return; }
+  if (!guests[dk]) guests[dk] = [];
+  guests[dk].push(name);
   guestFormOpenFor = null;
-  await loadWeek();
+  render();
 }
 
 async function removeGuest(dk, name) {
   const { error } = await sb.from("guests").delete().eq("booking_date", dk).eq("name", name);
   if (error) { showBanner("Couldn't remove that guest."); return; }
-  await loadWeek();
+  guests[dk] = (guests[dk] || []).filter(n => n !== name);
+  render();
 }
 
 async function toggleAttendance(dk, name) {
@@ -433,17 +436,23 @@ async function toggleAttendance(dk, name) {
   if (isOut) {
     const { error } = await sb.from("opt_outs").delete().eq("booking_date", dk).eq("member_name", name);
     if (error) { showBanner("Couldn't save that change."); return; }
+    optOuts[dk].delete(name);
   } else {
     const { error } = await sb.from("opt_outs").insert({ booking_date: dk, member_name: name });
     if (error) { showBanner("Couldn't save that change."); return; }
+    if (!optOuts[dk]) optOuts[dk] = new Set();
+    optOuts[dk].add(name);
   }
-  await loadWeek();
+  render();
 }
 
 async function removeBooking(id) {
   const { error } = await sb.from("bookings").delete().eq("id", Number(id));
   if (error) { showBanner("Couldn't remove that booking."); return; }
-  await loadWeek();
+  Object.keys(bookings).forEach(dk => {
+    bookings[dk] = bookings[dk].filter(b => b.id !== Number(id));
+  });
+  render();
 }
 
 function renderManageChips() {
@@ -462,13 +471,15 @@ async function addMember() {
   input.value = "";
   const { error } = await sb.from("members").insert({ name });
   if (error) { showBanner("That name may already be on the list."); return; }
-  await loadWeek();
+  members.push(name);
+  render();
 }
 
 async function removeMember(name) {
   const { error } = await sb.from("members").delete().eq("name", name);
   if (error) { showBanner("Couldn't remove that player."); return; }
-  await loadWeek();
+  members = members.filter(m => m !== name);
+  render();
 }
 
 function populateSelect(el, options, placeholder) {
@@ -546,9 +557,9 @@ async function saveBooking() {
   btn.disabled = true;
   btn.textContent = "Saving…";
 
-  const { error } = await sb.from("bookings").insert({
+  const { data, error } = await sb.from("bookings").insert({
     booking_date: date, venue, start_time: start, end_time: end, court, booked_by: bookedBy,
-  });
+  }).select();
 
   btn.disabled = false;
   btn.textContent = "Save booking";
@@ -561,8 +572,18 @@ async function saveBooking() {
 
   closeModal();
   const targetMonday = getMonday(new Date(date + "T00:00:00"));
-  if (dateKey(targetMonday) !== dateKey(weekStart)) { weekStart = targetMonday; }
-  await loadWeek();
+  if (dateKey(targetMonday) !== dateKey(weekStart)) {
+    // Booking is for a different week than the one on screen — a real navigation,
+    // so a full reload of that week's data is expected here.
+    weekStart = targetMonday;
+    await loadWeek();
+  } else {
+    // Same week that's already showing — just drop the new row into what we have.
+    const newRow = (data && data[0]) || { booking_date: date, venue, start_time: start, end_time: end, court, booked_by: bookedBy };
+    if (!bookings[date]) bookings[date] = [];
+    bookings[date].push(newRow);
+    render();
+  }
 }
 
 async function resetAllData() {
