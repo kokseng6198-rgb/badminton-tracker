@@ -273,7 +273,7 @@ function hideBanner() { document.getElementById("errorBanner").style.display = "
 async function loadWeek() {
   document.getElementById("daysContainer").innerHTML = '<div class="loading-msg">Loading…</div>';
   const dates = Array.from({length:5}, (_,i) => dateKey(addDays(weekStart, i)));
-  const from = dates[0], to = dates[6];
+  const from = dates[0], to = dates[4];
 
   const [membersRes, bookingsRes, optOutsRes, guestsRes] = await Promise.all([
     sb.from("members").select("name").order("id"),
