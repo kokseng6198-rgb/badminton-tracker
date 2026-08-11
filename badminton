@@ -1,0 +1,596 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Badminton Tracker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  /* ====================================================================
+     FILL IN THESE TWO LINES with your own Supabase project's values
+     (Project Settings, API Keys in your Supabase dashboard), then save
+     this file before you deploy it. They live in the script section near
+     the bottom of this file, not up here — search for "SUPABASE_URL".
+
+     For the URL: use the bare address ending in ".supabase.co" — do NOT
+     add "/rest/v1/" on the end, even if that's what the Data API page
+     shows you. (This file strips it automatically if you do, but the
+     clean version is the correct one to copy.)
+     ==================================================================== */
+  * { box-sizing: border-box; }
+  :root {
+    --court: #163C2C;
+    --court-light: #1F5A40;
+    --chalk: #F7F4EC;
+    --card: #FFFDF8;
+    --ink: #1B211D;
+    --ink-soft: #64766B;
+    --gold: #E0A631;
+    --net-red: #C4463A;
+    --line: #E4E0D3;
+  }
+  html, body { margin: 0; padding: 0; }
+  body { font-family: 'Inter', sans-serif; background: var(--chalk); color: var(--ink); min-height: 100vh; padding-bottom: 40px; }
+  .container { max-width: 480px; margin: 0 auto; }
+  .hero { position: relative; background: var(--court); overflow: hidden; padding: 20px 16px 16px; }
+  .court-svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .hero-content { position: relative; z-index: 1; }
+  .hero-top { display: flex; align-items: center; justify-content: space-between; }
+  .hero-top button { background: rgba(255,255,255,0.1); border: none; color: var(--chalk); width: 34px; height: 34px; border-radius: 8px; cursor: pointer; font-size: 16px; }
+  .hero-top button:active { background: rgba(255,255,255,0.25); }
+  .hero-title { text-align: center; }
+  .eyebrow { font-family: 'Oswald', sans-serif; font-size: 10px; letter-spacing: 2px; color: var(--gold); font-weight: 600; }
+  .hero-title h1 { font-family: 'Oswald', sans-serif; font-size: 20px; font-weight: 600; color: var(--chalk); margin: 2px 0 0; letter-spacing: 0.5px; }
+  .hero-sub { text-align: center; font-size: 11px; color: rgba(247,244,236,0.6); margin-top: 8px; }
+  .manage-toggle { margin: 10px auto 0; display: flex; gap: 6px; align-items: center; background: none; border: 1px solid rgba(255,255,255,0.25); color: var(--chalk); font-size: 12px; padding: 6px 12px; border-radius: 20px; cursor: pointer; }
+  .manage-panel { background: var(--court-light); padding: 14px 16px; display: none; }
+  .manage-panel.open { display: block; }
+  .manage-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+  .manage-chip { display: flex; align-items: center; gap: 5px; background: rgba(255,255,255,0.12); color: var(--chalk); font-size: 12px; padding: 5px 8px; border-radius: 14px; }
+  .manage-chip button { background: none; border: none; color: var(--chalk); opacity: 0.7; cursor: pointer; }
+  .manage-add { display: flex; gap: 6px; }
+  .manage-add input { flex: 1; border: none; border-radius: 8px; padding: 8px 10px; font-size: 13px; font-family: 'Inter', sans-serif; }
+  .manage-add button { background: var(--gold); border: none; border-radius: 8px; width: 34px; cursor: pointer; color: var(--ink); font-weight: 700; }
+  .note { font-size: 11px; color: rgba(247,244,236,0.7); margin-top: 10px; text-align: center; }
+  .banner { display: flex; gap: 8px; align-items: flex-start; background: #FBEFD9; border-bottom: 1px solid #EBD9B4; color: #6B4E12; font-size: 12px; padding: 10px 14px; }
+  .days { padding: 14px 12px 0; display: flex; flex-direction: column; gap: 12px; }
+  .day-card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .day-header { position: relative; padding: 10px 14px; display: flex; align-items: center; justify-content: space-between; }
+  .day-card.empty .day-header { background: transparent; border-bottom: 1px dashed var(--line); }
+  .day-card.booked .day-header { background: var(--court); }
+  .day-header-content { position: relative; z-index: 1; display: flex; align-items: baseline; gap: 8px; }
+  .day-en { font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 15px; letter-spacing: 1px; }
+  .day-card.booked .day-en { color: var(--chalk); }
+  .day-card.empty .day-en { color: var(--ink); }
+  .day-date { font-size: 12px; }
+  .day-card.booked .day-date { color: rgba(247,244,236,0.75); }
+  .day-card.empty .day-date { color: var(--ink-soft); }
+  .day-zh { font-size: 11px; }
+  .day-card.booked .day-zh { color: rgba(247,244,236,0.55); }
+  .day-card.empty .day-zh { color: var(--ink-soft); opacity: 0.7; }
+  .day-count { position: relative; z-index: 1; font-family: 'Oswald', sans-serif; font-size: 12px; letter-spacing: 0.5px; color: var(--gold); background: rgba(0,0,0,0.28); padding: 4px 9px; border-radius: 10px; }
+  .day-body { padding: 12px 14px 14px; }
+  .venue-row { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 10px; }
+  .venue-row + .venue-row { margin-top: -2px; padding-top: 10px; border-top: 1px dashed var(--line); }
+  .add-btn.add-another { margin: 2px 0 14px; }
+  .venue { font-weight: 600; font-size: 14px; }
+  .venue-meta { display: flex; gap: 10px; font-size: 12px; color: var(--ink-soft); margin-top: 2px; }
+  .booked-by { font-size: 11px; color: var(--ink-soft); margin-top: 3px; font-style: italic; }
+  .link-btn { background: none; border: none; color: var(--ink-soft); cursor: pointer; padding: 4px; font-size: 15px; }
+  .attend-hint { font-size: 11px; color: var(--ink-soft); margin-bottom: 8px; }
+  .chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+  .chip { text-align: center; justify-content: center; white-space: normal; word-break: break-word; line-height: 1.2; }
+  .chip { display: flex; align-items: center; gap: 4px; font-size: 12px; padding: 6px 10px; border-radius: 16px; border: 1px solid transparent; cursor: pointer; background: none; font-family: 'Inter', sans-serif; }
+  .chip:active { transform: scale(0.94); }
+  .chip.in { background: #A8DDB0; border-color: #7DC98A; color: #1F4A26; font-weight: 600; }
+  .chip.out { background: #F4C2BC; border-color: #E4948B; color: #7A2E26; text-decoration: line-through; }
+  .chip.guest { background: rgba(224,166,49,0.14); border: 1px dashed var(--gold); color: var(--ink); padding-right: 5px; }
+  .chip-remove { background: none; border: none; color: var(--ink-soft); cursor: pointer; padding: 0; margin-left: 1px; }
+  .chip.add-guest { background: transparent; border: 1px dashed var(--line); color: var(--ink-soft); }
+  .guest-form { display: flex; gap: 6px; margin-top: 8px; }
+  .guest-form input { flex: 1; font-family: 'Inter', sans-serif; font-size: 13px; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; min-width: 0; }
+  .guest-form button.add { background: var(--gold); color: var(--ink); border: none; font-size: 12px; font-weight: 600; padding: 0 14px; border-radius: 8px; cursor: pointer; }
+  .guest-form button.cancel { background: none; border: 1px solid var(--line); color: var(--ink-soft); border-radius: 8px; width: 34px; flex-shrink: 0; cursor: pointer; }
+  .out-line { font-size: 11px; color: var(--ink-soft); margin-top: 10px; }
+  .empty-body { padding: 14px; display: flex; align-items: center; justify-content: space-between; }
+  .empty-body span { font-size: 13px; color: var(--ink-soft); }
+  .add-btn { display: flex; align-items: center; gap: 4px; background: var(--ink); color: var(--chalk); border: none; font-size: 12px; font-weight: 600; padding: 8px 12px; border-radius: 10px; cursor: pointer; }
+  .overlay { position: fixed; inset: 0; background: rgba(22,60,44,0.5); display: none; align-items: flex-end; justify-content: center; z-index: 50; }
+  .overlay.open { display: flex; }
+  .modal { background: var(--card); width: 100%; max-width: 480px; border-radius: 18px 18px 0 0; padding: 18px 18px 24px; max-height: 88vh; overflow-y: auto; }
+  .modal-head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 14px; }
+  .modal-head h2 { font-family: 'Oswald', sans-serif; font-size: 17px; margin: 0; }
+  .modal-head button { background: none; border: none; cursor: pointer; color: var(--ink-soft); font-size: 18px; }
+  .form { display: flex; flex-direction: column; gap: 10px; }
+  .form label { font-size: 11px; color: var(--ink-soft); font-weight: 600; display: flex; flex-direction: column; gap: 4px; }
+  .form input { font-family: 'Inter', sans-serif; font-size: 14px; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; }
+  .form-row { display: flex; gap: 8px; }
+  .form-row label { flex: 1 1 0; min-width: 0; }
+  .form-row input { width: 100%; }
+  .form select { font-family: 'Inter', sans-serif; font-size: 14px; color: var(--ink); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; width: 100%; background: #fff; -webkit-appearance: none; appearance: none; }
+  .time-select-group { display: flex; align-items: center; gap: 4px; }
+  .time-select-group select { min-width: 0; }
+  .time-colon { color: var(--ink-soft); font-weight: 600; flex-shrink: 0; }
+  .form-error { color: var(--net-red); font-size: 12px; margin-top: 10px; }
+  .confirm-btn { width: 100%; background: var(--court); color: var(--chalk); border: none; font-family: 'Oswald', sans-serif; font-weight: 600; letter-spacing: 0.5px; font-size: 14px; padding: 13px; border-radius: 10px; margin-top: 16px; cursor: pointer; }
+  .confirm-btn:disabled { opacity: 0.6; }
+  .danger-zone { margin-top: 14px; padding-top: 12px; border-top: 1px solid rgba(255,255,255,0.15); }
+  .danger-btn { background: none; border: 1px solid var(--net-red); color: #F3B8AF; font-size: 12px; padding: 8px 12px; border-radius: 8px; cursor: pointer; width: 100%; }
+  .loading-msg { text-align: center; color: var(--ink-soft); font-size: 13px; padding: 40px 0; }
+</style>
+</head>
+<body>
+  <div class="container">
+    <div class="hero">
+      <svg class="court-svg" viewBox="0 0 200 100" preserveAspectRatio="none" style="opacity:0.1">
+        <rect x="4" y="4" width="192" height="92" fill="none" stroke="#F7F4EC" stroke-width="1.5"/>
+        <line x1="100" y1="4" x2="100" y2="96" stroke="#F7F4EC" stroke-width="2"/>
+        <line x1="4" y1="24" x2="196" y2="24" stroke="#F7F4EC" stroke-width="1"/>
+        <line x1="4" y1="76" x2="196" y2="76" stroke="#F7F4EC" stroke-width="1"/>
+      </svg>
+      <div class="hero-content">
+        <div class="hero-top">
+          <button id="prevWeek" aria-label="Previous week">‹</button>
+          <div class="hero-title">
+            <div class="eyebrow">WEEK OF</div>
+            <h1 id="weekLabel">–</h1>
+          </div>
+          <button id="nextWeek" aria-label="Next week">›</button>
+        </div>
+        <div class="hero-sub" id="weekSub"></div>
+        <button class="manage-toggle" id="manageToggle">👥 <span id="memberCount">0</span> players in the group</button>
+      </div>
+    </div>
+
+    <div class="manage-panel" id="managePanel">
+      <div class="manage-chips" id="manageChips"></div>
+      <div class="manage-add">
+        <input id="newMemberInput" placeholder="Add player name" />
+        <button id="addMemberBtn">+</button>
+      </div>
+      <div class="note">Removing someone here takes them out of every day.</div>
+      <div class="danger-zone">
+        <button class="danger-btn" id="resetBtn">Reset all data</button>
+      </div>
+    </div>
+
+    <div class="banner" id="errorBanner" style="display:none"></div>
+
+    <div id="daysContainer" class="days">
+      <div class="loading-msg">Loading…</div>
+    </div>
+
+  </div>
+
+  <div class="overlay" id="modalOverlay">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-head">
+        <h2>Add booking</h2>
+        <button id="closeModalBtn">✕</button>
+      </div>
+      <div class="form">
+        <label>Date<input type="date" id="formDate" /></label>
+        <label>Venue
+          <select id="formVenueSelect">
+            <option value="">Select a venue…</option>
+            <option value="Pasir Ris Sport Hall">Pasir Ris Sport Hall</option>
+            <option value="Our Tampines Hub - Community Auditorium">Our Tampines Hub - Community Auditorium</option>
+            <option value="Heartbeat @ Bedok ActiveSG Sport Hall">Heartbeat @ Bedok ActiveSG Sport Hall</option>
+            <option value="__other__">Other (type below)</option>
+          </select>
+        </label>
+        <label id="formVenueOtherWrap" style="display:none">Venue name
+          <input type="text" id="formVenueOther" placeholder="Type the venue name" />
+        </label>
+        <label>Booked by
+          <select id="formBookedBySelect"></select>
+        </label>
+        <label id="formBookedByOtherWrap" style="display:none">Name
+          <input type="text" id="formBookedByOther" placeholder="Type their name" />
+        </label>
+        <div class="form-row">
+          <label>Start
+            <div class="time-select-group">
+              <select id="formStartHour"></select>
+              <span class="time-colon">:</span>
+              <select id="formStartMinute"></select>
+            </div>
+          </label>
+          <label>End
+            <div class="time-select-group">
+              <select id="formEndHour"></select>
+              <span class="time-colon">:</span>
+              <select id="formEndMinute"></select>
+            </div>
+          </label>
+        </div>
+        <label>Court
+          <select id="formCourtSelect"></select>
+        </label>
+      </div>
+      <div class="form-error" id="formError" style="display:none"></div>
+      <button class="confirm-btn" id="saveBookingBtn">Save booking</button>
+    </div>
+  </div>
+
+<script>
+/* ====================================================================
+   FILL IN THESE TWO LINES with your own project's values from
+   Supabase → Project Settings → API Keys, then save this file.
+   ==================================================================== */
+const SUPABASE_URL = "https://kqmzelszkskkvsmkzoti.supabase.co/";
+const SUPABASE_KEY = "sb_publishable__8n635hM2wx2V9pkEkX0lA_IrQCY6NR";
+/* ==================================================================== */
+
+const sb = window.supabase.createClient(
+  SUPABASE_URL.replace(/\/rest\/v1\/?$/, "").replace(/\/+$/, ""),
+  SUPABASE_KEY
+);
+
+const WEEKDAY_EN = ["MON","TUE","WED","THU","FRI","SAT","SUN"];
+const WEEKDAY_ZH = ["星期一","星期二","星期三","星期四","星期五","星期六","星期日"];
+const MONTH_EN = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+
+function pad(n) { return n < 10 ? "0" + n : "" + n; }
+function dateKey(d) { return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`; }
+function getMonday(d) {
+  const x = new Date(d);
+  const day = x.getDay();
+  x.setDate(x.getDate() + (day === 0 ? -6 : 1 - day));
+  x.setHours(0,0,0,0);
+  return x;
+}
+function addDays(d, n) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
+function fmtDay(d) { return `${d.getDate()} ${MONTH_EN[d.getMonth()]}`; }
+function fmtDayYear(d) { return `${d.getDate()} ${MONTH_EN[d.getMonth()]} ${d.getFullYear()}`; }
+function wIdx(d) { return d.getDay() === 0 ? 6 : d.getDay() - 1; }
+function to12h(t) {
+  if (!t) return "";
+  const [h, m] = t.split(":").map(Number);
+  if (isNaN(h)) return t;
+  const suffix = h >= 12 ? "pm" : "am";
+  const hh = h % 12 === 0 ? 12 : h % 12;
+  return m ? `${hh}.${pad(m)}${suffix}` : `${hh}${suffix}`;
+}
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+
+let weekStart = getMonday(new Date());
+let members = [];
+let bookings = {};   // dateKey -> {venue,start_time,end_time,court}
+let optOuts = {};    // dateKey -> Set(names)
+let guests = {};      // dateKey -> [names]
+let modalDate = null;
+
+function showBanner(msg) {
+  const b = document.getElementById("errorBanner");
+  b.textContent = "⚠ " + msg;
+  b.style.display = "flex";
+}
+function hideBanner() { document.getElementById("errorBanner").style.display = "none"; }
+
+async function loadWeek() {
+  document.getElementById("daysContainer").innerHTML = '<div class="loading-msg">Loading…</div>';
+  const dates = Array.from({length:5}, (_,i) => dateKey(addDays(weekStart, i)));
+  const from = dates[0], to = dates[6];
+
+  const [membersRes, bookingsRes, optOutsRes, guestsRes] = await Promise.all([
+    sb.from("members").select("name").order("id"),
+    sb.from("bookings").select("*").gte("booking_date", from).lte("booking_date", to).order("start_time", { ascending: true, nullsFirst: false }),
+    sb.from("opt_outs").select("*").gte("booking_date", from).lte("booking_date", to),
+    sb.from("guests").select("*").gte("booking_date", from).lte("booking_date", to),
+  ]);
+
+  if (membersRes.error || bookingsRes.error || optOutsRes.error || guestsRes.error) {
+    const err = membersRes.error || bookingsRes.error || optOutsRes.error || guestsRes.error;
+    showBanner(`Couldn't reach the database — ${err.message || "unknown error"}. Check your Supabase URL/key at the top of this file, and that the schema has been run.`);
+    document.getElementById("daysContainer").innerHTML = "";
+    return;
+  }
+  hideBanner();
+
+  members = (membersRes.data || []).map(m => m.name);
+  bookings = {}; // dateKey -> array of booking rows (a day can have several courts/timings)
+  (bookingsRes.data || []).forEach(b => {
+    if (!bookings[b.booking_date]) bookings[b.booking_date] = [];
+    bookings[b.booking_date].push(b);
+  });
+  optOuts = {};
+  (optOutsRes.data || []).forEach(o => {
+    if (!optOuts[o.booking_date]) optOuts[o.booking_date] = new Set();
+    optOuts[o.booking_date].add(o.member_name);
+  });
+  guests = {};
+  (guestsRes.data || []).forEach(g => {
+    if (!guests[g.booking_date]) guests[g.booking_date] = [];
+    guests[g.booking_date].push(g.name);
+  });
+
+  render();
+}
+
+function render() {
+  const weekDates = Array.from({length:5}, (_,i) => addDays(weekStart, i));
+  const startY = weekDates[0].getFullYear(), endY = weekDates[4].getFullYear();
+  document.getElementById("weekLabel").textContent = startY === endY
+    ? `${fmtDay(weekDates[0])} – ${fmtDay(weekDates[4])} ${endY}`
+    : `${fmtDayYear(weekDates[0])} – ${fmtDayYear(weekDates[4])}`;
+  const bookedCount = weekDates.filter(d => (bookings[dateKey(d)] || []).length > 0).length;
+  document.getElementById("weekSub").textContent = bookedCount === 0 ? "No courts booked this week" : `${bookedCount} ${bookedCount === 1 ? "day has" : "days have"} a court booked`;
+  document.getElementById("memberCount").textContent = members.length;
+  renderManageChips();
+
+  const container = document.getElementById("daysContainer");
+  container.innerHTML = "";
+
+  weekDates.forEach(d => {
+    const dk = dateKey(d);
+    const dayBookings = bookings[dk] || [];
+    const out = optOuts[dk] || new Set();
+    const dayGuests = guests[dk] || [];
+    const wi = wIdx(d);
+
+    const card = document.createElement("div");
+    card.className = `day-card ${dayBookings.length > 0 ? "booked" : "empty"}`;
+
+    const playing = members.filter(m => !out.has(m)).length + dayGuests.length;
+
+    card.innerHTML = `
+      <div class="day-header">
+        <div class="day-header-content">
+          <span class="day-en">${WEEKDAY_EN[wi]}</span>
+          <span class="day-date">${fmtDay(d)}</span>
+          <span class="day-zh">${WEEKDAY_ZH[wi]}</span>
+        </div>
+        ${dayBookings.length > 0 ? `<span class="day-count">${playing} PLAYING</span>` : ""}
+      </div>
+      ${dayBookings.length > 0 ? dayBodyHTML(dk, dayBookings, out, dayGuests) : `
+        <div class="empty-body">
+          <span>No court booked yet</span>
+          <button class="add-btn" data-open="${dk}">+ Add booking</button>
+        </div>`}
+    `;
+    container.appendChild(card);
+  });
+
+  container.querySelectorAll("[data-open]").forEach(btn => btn.addEventListener("click", () => openModal(btn.dataset.open)));
+  container.querySelectorAll("[data-toggle]").forEach(btn => btn.addEventListener("click", () => toggleAttendance(btn.dataset.toggle, btn.dataset.name)));
+  container.querySelectorAll("[data-remove-booking]").forEach(btn => btn.addEventListener("click", () => removeBooking(btn.dataset.removeBooking)));
+  container.querySelectorAll("[data-remove-guest]").forEach(btn => btn.addEventListener("click", () => removeGuest(btn.dataset.day, btn.dataset.name)));
+  container.querySelectorAll("[data-add-guest]").forEach(btn => btn.addEventListener("click", () => showGuestForm(btn.dataset.addGuest)));
+  container.querySelectorAll("[data-guest-cancel]").forEach(btn => btn.addEventListener("click", () => render()));
+  container.querySelectorAll("[data-guest-submit]").forEach(btn => btn.addEventListener("click", () => submitGuest(btn.dataset.guestSubmit)));
+}
+
+let guestFormOpenFor = null;
+
+function dayBodyHTML(dk, dayBookings, out, dayGuests) {
+  const bookingRows = dayBookings.map(b => `
+    <div class="venue-row">
+      <div>
+        <div class="venue">${esc(b.venue || "Venue TBC")}</div>
+        <div class="venue-meta">
+          ${b.court ? `<span>Court ${esc(b.court)}</span>` : ""}
+          ${b.start_time ? `<span>${to12h(b.start_time)}${b.end_time ? "–" + to12h(b.end_time) : ""}</span>` : ""}
+        </div>
+        ${b.booked_by ? `<div class="booked-by">Booked by ${esc(b.booked_by)}</div>` : ""}
+      </div>
+      <button class="link-btn" data-remove-booking="${b.id}">🗑</button>
+    </div>
+  `).join("");
+  const chips = members.map(name => {
+    const isOut = out.has(name);
+    return `<button class="chip ${isOut ? "out" : "in"}" data-toggle="${dk}" data-name="${esc(name)}">${!isOut ? "✓ " : ""}${esc(name)}</button>`;
+  }).join("");
+  const guestChips = dayGuests.map(name => `
+    <span class="chip guest">✓ ${esc(name)}
+      <button class="chip-remove" data-remove-guest data-day="${dk}" data-name="${esc(name)}">✕</button>
+    </span>`).join("");
+  const addGuestChip = guestFormOpenFor === dk ? "" : `<button class="chip add-guest" data-add-guest="${dk}">+ Add name</button>`;
+  const guestForm = guestFormOpenFor === dk ? `
+    <div class="guest-form">
+      <input id="guestNameInput" placeholder="Name of the person joining" autofocus />
+      <button class="add" data-guest-submit="${dk}">Add</button>
+      <button class="cancel" data-guest-cancel>✕</button>
+    </div>` : "";
+  const outLine = out.size > 0 ? `<div class="out-line">Can't make it: ${[...out].map(esc).join(", ")}</div>` : "";
+
+  return `
+    <div class="day-body">
+      ${bookingRows}
+      <button class="add-btn add-another" data-open="${dk}">+ Add another court</button>
+      <div class="attend-hint">One attendance list for the whole day, even with multiple courts booked. Everyone's in by default — tap your name if you can't make it, or add someone joining just for this day.</div>
+      <div class="chips">${chips}${guestChips}${addGuestChip}</div>
+      ${guestForm}
+      ${outLine}
+    </div>
+  `;
+}
+
+function showGuestForm(dk) { guestFormOpenFor = dk; render(); setTimeout(() => { const el = document.getElementById("guestNameInput"); if (el) el.focus(); }, 0); }
+
+async function submitGuest(dk) {
+  const input = document.getElementById("guestNameInput");
+  const name = (input.value || "").trim();
+  if (!name) { guestFormOpenFor = null; render(); return; }
+  if (members.some(m => m.toLowerCase() === name.toLowerCase())) { alert(`${name} is already on the regular player list.`); return; }
+  if ((guests[dk] || []).some(g => g.toLowerCase() === name.toLowerCase())) { alert(`${name} is already added for this day.`); return; }
+  const { error } = await sb.from("guests").insert({ booking_date: dk, name });
+  if (error) { showBanner("Couldn't add that guest. Try again."); return; }
+  guestFormOpenFor = null;
+  await loadWeek();
+}
+
+async function removeGuest(dk, name) {
+  const { error } = await sb.from("guests").delete().eq("booking_date", dk).eq("name", name);
+  if (error) { showBanner("Couldn't remove that guest."); return; }
+  await loadWeek();
+}
+
+async function toggleAttendance(dk, name) {
+  const isOut = (optOuts[dk] || new Set()).has(name);
+  if (isOut) {
+    const { error } = await sb.from("opt_outs").delete().eq("booking_date", dk).eq("member_name", name);
+    if (error) { showBanner("Couldn't save that change."); return; }
+  } else {
+    const { error } = await sb.from("opt_outs").insert({ booking_date: dk, member_name: name });
+    if (error) { showBanner("Couldn't save that change."); return; }
+  }
+  await loadWeek();
+}
+
+async function removeBooking(id) {
+  const { error } = await sb.from("bookings").delete().eq("id", Number(id));
+  if (error) { showBanner("Couldn't remove that booking."); return; }
+  await loadWeek();
+}
+
+function renderManageChips() {
+  const wrap = document.getElementById("manageChips");
+  wrap.innerHTML = members.map(name => `
+    <span class="manage-chip">${esc(name)}
+      <button data-remove-member="${esc(name)}">✕</button>
+    </span>`).join("");
+  wrap.querySelectorAll("[data-remove-member]").forEach(btn => btn.addEventListener("click", () => removeMember(btn.dataset.removeMember)));
+}
+
+async function addMember() {
+  const input = document.getElementById("newMemberInput");
+  const name = (input.value || "").trim();
+  if (!name) return;
+  input.value = "";
+  const { error } = await sb.from("members").insert({ name });
+  if (error) { showBanner("That name may already be on the list."); return; }
+  await loadWeek();
+}
+
+async function removeMember(name) {
+  const { error } = await sb.from("members").delete().eq("name", name);
+  if (error) { showBanner("Couldn't remove that player."); return; }
+  await loadWeek();
+}
+
+function populateSelect(el, options, placeholder) {
+  el.innerHTML = (placeholder !== undefined ? `<option value="">${placeholder}</option>` : "") +
+    options.map(([value, label]) => `<option value="${esc(value)}">${esc(label)}</option>`).join("");
+}
+
+function openModal(dk) {
+  modalDate = dk;
+  document.getElementById("formDate").value = dk;
+
+  document.getElementById("formVenueSelect").value = "";
+  document.getElementById("formVenueOther").value = "";
+  document.getElementById("formVenueOtherWrap").style.display = "none";
+
+  const bookedBySelect = document.getElementById("formBookedBySelect");
+  populateSelect(bookedBySelect, [...members.map(m => [m, m]), ["__other__", "Other (type below)"]], "Who booked this?");
+  document.getElementById("formBookedByOther").value = "";
+  document.getElementById("formBookedByOtherWrap").style.display = "none";
+
+  const hourOptions = Array.from({length:24}, (_,h) => [String(h).padStart(2,"0"), String(h).padStart(2,"0")]);
+  const minuteOptions = [["00","00"], ["30","30"]];
+  populateSelect(document.getElementById("formStartHour"), hourOptions, "--");
+  populateSelect(document.getElementById("formStartMinute"), minuteOptions, "--");
+  populateSelect(document.getElementById("formEndHour"), hourOptions, "--");
+  populateSelect(document.getElementById("formEndMinute"), minuteOptions, "--");
+
+  const courtOptions = Array.from({length:16}, (_,i) => [String(i+1), String(i+1)]);
+  populateSelect(document.getElementById("formCourtSelect"), courtOptions, "Select a court…");
+
+  document.getElementById("formError").style.display = "none";
+  document.getElementById("modalOverlay").classList.add("open");
+}
+function closeModal() { document.getElementById("modalOverlay").classList.remove("open"); }
+
+function handleVenueSelectChange() {
+  const select = document.getElementById("formVenueSelect");
+  const otherWrap = document.getElementById("formVenueOtherWrap");
+  otherWrap.style.display = select.value === "__other__" ? "flex" : "none";
+}
+
+function handleBookedBySelectChange() {
+  const select = document.getElementById("formBookedBySelect");
+  const otherWrap = document.getElementById("formBookedByOtherWrap");
+  otherWrap.style.display = select.value === "__other__" ? "flex" : "none";
+}
+
+function readTimeSelect(hourId, minuteId) {
+  const h = document.getElementById(hourId).value;
+  const m = document.getElementById(minuteId).value;
+  return (h && m) ? `${h}:${m}` : "";
+}
+
+async function saveBooking() {
+  const date = document.getElementById("formDate").value;
+  const venueSelect = document.getElementById("formVenueSelect").value;
+  const venue = venueSelect === "__other__"
+    ? document.getElementById("formVenueOther").value.trim()
+    : venueSelect;
+  const bookedBySelect = document.getElementById("formBookedBySelect").value;
+  const bookedBy = bookedBySelect === "__other__"
+    ? document.getElementById("formBookedByOther").value.trim()
+    : bookedBySelect;
+  const start = readTimeSelect("formStartHour", "formStartMinute");
+  const end = readTimeSelect("formEndHour", "formEndMinute");
+  const court = document.getElementById("formCourtSelect").value;
+  const errEl = document.getElementById("formError");
+
+  if (!date || !venue) {
+    errEl.textContent = "Date and venue are required.";
+    errEl.style.display = "block";
+    return;
+  }
+  const btn = document.getElementById("saveBookingBtn");
+  btn.disabled = true;
+  btn.textContent = "Saving…";
+
+  const { error } = await sb.from("bookings").insert({
+    booking_date: date, venue, start_time: start, end_time: end, court, booked_by: bookedBy,
+  });
+
+  btn.disabled = false;
+  btn.textContent = "Save booking";
+
+  if (error) {
+    errEl.textContent = "Couldn't save — check your connection and try again.";
+    errEl.style.display = "block";
+    return;
+  }
+
+  closeModal();
+  const targetMonday = getMonday(new Date(date + "T00:00:00"));
+  if (dateKey(targetMonday) !== dateKey(weekStart)) { weekStart = targetMonday; }
+  await loadWeek();
+}
+
+async function resetAllData() {
+  if (!confirm("Delete every booking, attendance mark, and guest for everyone? Players list stays. This can't be undone.")) return;
+  await sb.from("guests").delete().neq("name", "__none__");
+  await sb.from("opt_outs").delete().neq("member_name", "__none__");
+  await sb.from("bookings").delete().gte("id", 0);
+  await loadWeek();
+}
+
+document.getElementById("prevWeek").addEventListener("click", () => { weekStart = addDays(weekStart, -7); loadWeek(); });
+document.getElementById("nextWeek").addEventListener("click", () => { weekStart = addDays(weekStart, 7); loadWeek(); });
+document.getElementById("manageToggle").addEventListener("click", () => document.getElementById("managePanel").classList.toggle("open"));
+document.getElementById("addMemberBtn").addEventListener("click", addMember);
+document.getElementById("newMemberInput").addEventListener("keydown", e => { if (e.key === "Enter") addMember(); });
+document.getElementById("resetBtn").addEventListener("click", resetAllData);
+document.getElementById("closeModalBtn").addEventListener("click", closeModal);
+document.getElementById("modalOverlay").addEventListener("click", closeModal);
+document.getElementById("saveBookingBtn").addEventListener("click", saveBooking);
+document.getElementById("formVenueSelect").addEventListener("change", handleVenueSelectChange);
+document.getElementById("formBookedBySelect").addEventListener("change", handleBookedBySelectChange);
+
+if (SUPABASE_URL === "YOUR_SUPABASE_URL" || SUPABASE_KEY === "YOUR_SUPABASE_ANON_OR_PUBLISHABLE_KEY") {
+  showBanner("This file still has placeholder Supabase credentials — edit SUPABASE_URL and SUPABASE_KEY near the top of the file's script section.");
+  document.getElementById("daysContainer").innerHTML = "";
+} else {
+  loadWeek();
+}
+</script>
+</body>
+</html>
