@@ -542,6 +542,12 @@ async function saveBooking() {
   btn.disabled = true;
   btn.textContent = "Saving…";
 
+  // Was this date already booked before this save? If not, this booking starts a
+  // fresh session for the day — any attendance marks or guests left over from a
+  // previous (since-deleted) booking on this date shouldn't carry over.
+  const { data: existing, error: checkError } = await sb.from("bookings").select("id").eq("booking_date", date).limit(1);
+  const isFreshDay = !checkError && (!existing || existing.length === 0);
+
   const { data, error } = await sb.from("bookings").insert({
     booking_date: date, venue, start_time: start, end_time: end, court, booked_by: bookedBy,
   }).select();
@@ -553,6 +559,13 @@ async function saveBooking() {
     errEl.textContent = `Couldn't save — ${error.message || "check your connection and try again."}`;
     errEl.style.display = "block";
     return;
+  }
+
+  if (isFreshDay) {
+    await sb.from("opt_outs").delete().eq("booking_date", date);
+    await sb.from("guests").delete().eq("booking_date", date);
+    optOuts[date] = new Set();
+    guests[date] = [];
   }
 
   closeModal();
