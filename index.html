@@ -550,7 +550,7 @@ async function saveBooking() {
   btn.textContent = "Save booking";
 
   if (error) {
-    errEl.textContent = "Couldn't save — check your connection and try again.";
+    errEl.textContent = `Couldn't save — ${error.message || "check your connection and try again."}`;
     errEl.style.display = "block";
     return;
   }
