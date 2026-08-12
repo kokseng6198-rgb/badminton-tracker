@@ -47,6 +47,9 @@
   .hero-title h1 { font-family: 'Oswald', sans-serif; font-size: 20px; font-weight: 600; color: var(--chalk); margin: 2px 0 0; letter-spacing: 0.5px; }
   .hero-sub { text-align: center; font-size: 11px; color: rgba(247,244,236,0.6); margin-top: 8px; }
   .manage-toggle { margin: 10px auto 0; display: flex; gap: 6px; align-items: center; background: none; border: 1px solid rgba(255,255,255,0.25); color: var(--chalk); font-size: 12px; padding: 6px 12px; border-radius: 20px; cursor: pointer; }
+  .live-status { text-align: center; font-size: 10px; letter-spacing: 0.5px; margin-top: 8px; color: rgba(247,244,236,0.45); }
+  .live-status.connected { color: #A8DDB0; }
+  .live-status.disconnected { color: #F4C2BC; }
   .manage-panel { background: var(--court-light); padding: 14px 16px; display: none; }
   .manage-panel.open { display: block; }
   .manage-chips { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
@@ -140,6 +143,7 @@
         </div>
         <div class="hero-sub" id="weekSub"></div>
         <button class="manage-toggle" id="manageToggle">👥 <span id="memberCount">0</span> players in the group</button>
+        <div class="live-status" id="liveStatus">○ Connecting…</div>
       </div>
     </div>
 
@@ -650,7 +654,16 @@ if (SUPABASE_URL === "YOUR_SUPABASE_URL" || SUPABASE_KEY === "YOUR_SUPABASE_ANON
     .on("postgres_changes", { event: "*", schema: "public", table: "opt_outs" }, scheduleQuietRefresh)
     .on("postgres_changes", { event: "*", schema: "public", table: "guests" }, scheduleQuietRefresh)
     .on("postgres_changes", { event: "*", schema: "public", table: "members" }, scheduleQuietRefresh)
-    .subscribe();
+    .subscribe((status) => {
+      const el = document.getElementById("liveStatus");
+      if (status === "SUBSCRIBED") {
+        el.textContent = "● Live — updates instantly";
+        el.className = "live-status connected";
+      } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        el.textContent = "○ Not live — refresh manually to see others' changes";
+        el.className = "live-status disconnected";
+      }
+    });
 }
 </script>
 </body>
