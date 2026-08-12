@@ -316,6 +316,10 @@ async function loadWeek(silent) {
 }
 
 function render() {
+  // Preserve wherever the page was scrolled to — rebuilding the day list below
+  // must never silently shove the person back to the top.
+  const savedScrollY = window.scrollY;
+
   const weekDates = Array.from({length:5}, (_,i) => addDays(weekStart, i));
   const startY = weekDates[0].getFullYear(), endY = weekDates[4].getFullYear();
   document.getElementById("weekLabel").textContent = startY === endY
@@ -379,6 +383,8 @@ function render() {
   container.querySelectorAll("[data-add-guest]").forEach(btn => btn.addEventListener("click", () => showGuestForm(btn.dataset.addGuest)));
   container.querySelectorAll("[data-guest-cancel]").forEach(btn => btn.addEventListener("click", () => render()));
   container.querySelectorAll("[data-guest-submit]").forEach(btn => btn.addEventListener("click", () => submitGuest(btn.dataset.guestSubmit)));
+
+  requestAnimationFrame(() => window.scrollTo(0, savedScrollY));
 }
 
 let guestFormOpenFor = null;
@@ -603,6 +609,7 @@ async function saveBooking() {
     // Booking is for a different week than the one on screen — a real navigation,
     // so a full reload of that week's data is expected here.
     weekStart = targetMonday;
+    window.scrollTo(0, 0);
     await loadWeek();
   } else {
     // Same week that's already showing — just drop the new row into what we have.
@@ -621,8 +628,8 @@ async function resetAllData() {
   await loadWeek();
 }
 
-document.getElementById("prevWeek").addEventListener("click", () => { weekStart = addDays(weekStart, -7); loadWeek(); });
-document.getElementById("nextWeek").addEventListener("click", () => { weekStart = addDays(weekStart, 7); loadWeek(); });
+document.getElementById("prevWeek").addEventListener("click", () => { weekStart = addDays(weekStart, -7); window.scrollTo(0, 0); loadWeek(); });
+document.getElementById("nextWeek").addEventListener("click", () => { weekStart = addDays(weekStart, 7); window.scrollTo(0, 0); loadWeek(); });
 document.getElementById("manageToggle").addEventListener("click", () => document.getElementById("managePanel").classList.toggle("open"));
 document.getElementById("addMemberBtn").addEventListener("click", addMember);
 document.getElementById("newMemberInput").addEventListener("keydown", e => { if (e.key === "Enter") addMember(); });
