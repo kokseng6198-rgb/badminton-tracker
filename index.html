@@ -40,6 +40,8 @@
   .hero-top { display: flex; align-items: center; justify-content: space-between; }
   .hero-top button { background: rgba(255,255,255,0.1); border: none; color: var(--chalk); width: 34px; height: 34px; border-radius: 8px; cursor: pointer; font-size: 16px; }
   .hero-top button:active { background: rgba(255,255,255,0.25); }
+  .hero-top button:disabled { cursor: default; }
+  .hero-top button:disabled:active { background: rgba(255,255,255,0.1); }
   .hero-title { text-align: center; }
   .eyebrow { font-family: 'Oswald', sans-serif; font-size: 10px; letter-spacing: 2px; color: var(--gold); font-weight: 600; }
   .hero-title h1 { font-family: 'Oswald', sans-serif; font-size: 20px; font-weight: 600; color: var(--chalk); margin: 2px 0 0; letter-spacing: 0.5px; }
@@ -245,7 +247,16 @@ function to12h(t) {
 }
 function esc(s) { return String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
 
-let weekStart = getMonday(new Date());
+// From Monday through Friday, this is simply this week. From Saturday 00:00
+// through Sunday, the working week is over, so default to next week instead.
+function getDefaultWeekStart() {
+  const now = new Date();
+  const day = now.getDay(); // 0 = Sun, 6 = Sat
+  const thisMonday = getMonday(now);
+  return (day === 6 || day === 0) ? addDays(thisMonday, 7) : thisMonday;
+}
+
+let weekStart = getDefaultWeekStart();
 let members = [];
 let bookings = {};   // dateKey -> {venue,start_time,end_time,court}
 let optOuts = {};    // dateKey -> Set(names)
@@ -259,8 +270,8 @@ function showBanner(msg) {
 }
 function hideBanner() { document.getElementById("errorBanner").style.display = "none"; }
 
-async function loadWeek() {
-  document.getElementById("daysContainer").innerHTML = '<div class="loading-msg">Loading…</div>';
+async function loadWeek(silent) {
+  if (!silent) document.getElementById("daysContainer").innerHTML = '<div class="loading-msg">Loading…</div>';
   const dates = Array.from({length:5}, (_,i) => dateKey(addDays(weekStart, i)));
   const from = dates[0], to = dates[4];
 
@@ -272,6 +283,7 @@ async function loadWeek() {
   ]);
 
   if (membersRes.error || bookingsRes.error || optOutsRes.error || guestsRes.error) {
+    if (silent) return; // a background refresh failing quietly isn't worth interrupting the page for
     const err = membersRes.error || bookingsRes.error || optOutsRes.error || guestsRes.error;
     showBanner(`Couldn't reach the database — ${err.message || "unknown error"}. Check your Supabase URL/key at the top of this file, and that the schema has been run.`);
     document.getElementById("daysContainer").innerHTML = "";
@@ -306,9 +318,22 @@ function render() {
     ? `${fmtDay(weekDates[0])} – ${fmtDay(weekDates[4])} ${endY}`
     : `${fmtDayYear(weekDates[0])} – ${fmtDayYear(weekDates[4])}`;
   const bookedCount = weekDates.filter(d => (bookings[dateKey(d)] || []).length > 0).length;
-  document.getElementById("weekSub").textContent = bookedCount === 0 ? "No courts booked this week" : `${bookedCount} ${bookedCount === 1 ? "day has" : "days have"} a court booked`;
+  document.getElementById("weekSub").textContent = bookedCount === 0
+    ? "No courts booked this week"
+    : bookedCount === 1
+      ? "There's a court booked on 1 day"
+      : `There are courts booked on ${bookedCount} days`;
   document.getElementById("memberCount").textContent = members.length;
   renderManageChips();
+
+  // No need to browse past weeks — lock the "previous" arrow once we're at the
+  // earliest week the app will show (this floor also jumps forward on weekends,
+  // same as the initial default).
+  const earliestWeek = getDefaultWeekStart();
+  const prevBtn = document.getElementById("prevWeek");
+  const atFloor = dateKey(weekStart) <= dateKey(earliestWeek);
+  prevBtn.disabled = atFloor;
+  prevBtn.style.opacity = atFloor ? "0.3" : "1";
 
   const container = document.getElementById("daysContainer");
   container.innerHTML = "";
@@ -609,6 +634,23 @@ if (SUPABASE_URL === "YOUR_SUPABASE_URL" || SUPABASE_KEY === "YOUR_SUPABASE_ANON
   document.getElementById("daysContainer").innerHTML = "";
 } else {
   loadWeek();
+
+  // Live updates: when anyone (on any device) changes a booking, attendance mark,
+  // guest, or the player list, quietly re-fetch and re-render — no manual refresh
+  // needed. Requires Realtime to be turned on for these tables in Supabase (see
+  // enable_realtime.sql). Debounced slightly so several quick changes in a row
+  // only trigger one refresh, not one per change.
+  let realtimeRefreshTimer = null;
+  function scheduleQuietRefresh() {
+    clearTimeout(realtimeRefreshTimer);
+    realtimeRefreshTimer = setTimeout(() => loadWeek(true), 400);
+  }
+  sb.channel("tracker-live-updates")
+    .on("postgres_changes", { event: "*", schema: "public", table: "bookings" }, scheduleQuietRefresh)
+    .on("postgres_changes", { event: "*", schema: "public", table: "opt_outs" }, scheduleQuietRefresh)
+    .on("postgres_changes", { event: "*", schema: "public", table: "guests" }, scheduleQuietRefresh)
+    .on("postgres_changes", { event: "*", schema: "public", table: "members" }, scheduleQuietRefresh)
+    .subscribe();
 }
 </script>
 </body>
